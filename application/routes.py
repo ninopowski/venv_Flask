@@ -1,7 +1,7 @@
 from application import app, db
 from application.models import User, Course, Enrollment
 from application.forms import LoginFrom, RegisterForm
-from flask import render_template, request, Response, redirect, url_for, flash
+from flask import render_template, request, Response, redirect, url_for, flash, session
 import json
 
 
@@ -22,7 +22,10 @@ def courses(term = None):
 
 @app.route("/enrollment", methods=["GET", "POST"])
 def enrollment():
-    user_id = 1
+    # checking if the user is signed in
+    if not session.get('username'):
+        return redirect(url_for('login'))
+    user_id = session.get('user_id')
     courseID = request.form.get("courseID")
     course_title = request.form.get("title")
     term = request.form.get("term")
@@ -91,6 +94,9 @@ def register():
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
+    # checking if user is already signed in
+    if session.get('username'):
+        return redirect(url_for('index'))
     form = LoginFrom()
     if form.validate_on_submit():
         email = form.email.data
@@ -100,6 +106,8 @@ def login():
         if user:
             if user.check_password(password):
                 flash(f"{user.first_name}, you are successfully logged in.", "success")
+                session['user_id'] = user.user_id
+                session['username'] = user.first_name
                 return redirect(url_for('index'))
             else:
                 flash("Wrong password, try again.", "danger")
@@ -107,6 +115,13 @@ def login():
         else:
             flash("Something went wrong.", "danger")
     return render_template("login.html", form=form, title="Login", login=True)
+
+@app.route("/logout")
+def logout():
+    session['user_id'] = False
+    session.pop('username', None)
+    return redirect(url_for('index'))
+
 
 @app.route("/api/")
 @app.route("/api/<idx>")
