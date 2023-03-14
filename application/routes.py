@@ -1,12 +1,8 @@
-from application import app
-from flask import render_template, request, Response
+from application import app, db
+from application.models import User, Course, Enrollment
+from application.forms import LoginFrom, RegisterForm
+from flask import render_template, request, Response, redirect, url_for, flash
 import json
-
-data_json = [{"courseID":"1111","title":"PHP 101","description":"Intro to PHP","credits":3,"term":"Fall, Spring"},
-        {"courseID":"2222","title":"Java 1","description":"Intro to Java Programming","credits":4,"term":"Spring"},
-        {"courseID":"3333","title":"Adv PHP 201","description":"Advanced PHP Programming","credits":3,"term":"Fall"},
-        {"courseID":"4444","title":"Angular 1","description":"Intro to Angular","credits":3,"term":"Fall, Spring"},
-        {"courseID":"5555","title":"Java 2","description":"Advanced Java Programming","credits":4,"term":"Fall"}]
 
 
 @app.route("/")
@@ -17,8 +13,12 @@ def index():
 
 @app.route("/courses")
 @app.route("/courses/<term>")
-def courses(term="2020"):
-    return render_template("courses.html", data=data_json, courses=True, term=term)
+def courses(term = None):
+    if term is None:
+        term = "Winter 2023"
+    classes = Course.objects.all()
+    print(classes)
+    return render_template("courses.html", data=classes, courses=True, term=term)
 
 @app.route("/enrollment", methods=["GET", "POST"])
 def enrollment():
@@ -27,13 +27,41 @@ def enrollment():
     term = request.form.get("term")
     return render_template("enrollment.html", data={"id":id, "title":title, "term":term})
 
-@app.route("/register")
+@app.route("/register", methods=["GET", "POST"])
 def register():
-    return render_template("register.html", register=True)
+    form = RegisterForm()
+    if form.validate_on_submit():
+        user_id = User.objects.count() + 1
+        password = form.password_two.data
+        user = User()
+        user.user_id = user_id
+        user.email = form.email.data
+        user.first_name = form.first_name.data
+        user.last_name = form.last_name.data
+        user.set_password(password)
+        user.save()
+        flash("You are registered", "success")
+        return redirect(url_for('index'))
+    return render_template("register.html", form=form, register=True)
 
-@app.route("/login")
+@app.route("/login", methods=["GET", "POST"])
 def login():
-    return render_template("login.html", login=True)
+    form = LoginFrom()
+    if form.validate_on_submit():
+        email = form.email.data
+        password = form.password.data
+
+        user = User.objects(email=email).first()
+        if user:
+            if user.check_password(password):
+                flash(f"{user.first_name}, you are successfully logged in.", "success")
+                return redirect(url_for('index'))
+            else:
+                flash("Wrong password, try again.", "danger")
+                return redirect(url_for('login'))
+        else:
+            flash("Something went wrong.", "danger")
+    return render_template("login.html", form=form, title="Login", login=True)
 
 @app.route("/api/")
 @app.route("/api/<idx>")
@@ -47,4 +75,9 @@ def api(idx = None):
 
     return Response(json.dumps(jdata), mimetype="application/json")
 
-
+@app.route("/user")
+def user():
+    #User(user_id=1, first_name="Nino", last_name="Perkovikj", email="nino@mail.com", password="username").save()
+    #User(user_id=2, first_name="Mary", last_name="Jane", email="m.jane@mail.com", password="1234").save()
+    users = User.objects.all()
+    return render_template("user.html", users=users)
