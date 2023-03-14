@@ -22,10 +22,55 @@ def courses(term = None):
 
 @app.route("/enrollment", methods=["GET", "POST"])
 def enrollment():
-    id = request.form.get("courseID")
-    title = request.form.get("title")
+    user_id = 1
+    courseID = request.form.get("courseID")
+    course_title = request.form.get("title")
     term = request.form.get("term")
-    return render_template("enrollment.html", data={"id":id, "title":title, "term":term})
+
+    if courseID:
+        if Enrollment.objects(user_id=user_id, courseID=courseID):
+            flash(f"You are already registerd in {course_title}.", "danger")
+            return redirect(url_for('courses'))
+        else:
+            Enrollment(user_id=user_id, courseID=courseID).save()
+            flash(f"You enrolled to {course_title}.", "success")
+    classes = list(User.objects.aggregate(*[
+            {
+                '$lookup': {
+                    'from': 'enrollment',
+                    'localField': 'user_id',
+                    'foreignField': 'user_id',
+                    'as': 'result'
+                }
+            }, {
+                '$unwind': {
+                    'path': '$result',
+                    'includeArrayIndex': 'result_id',
+                    'preserveNullAndEmptyArrays': False
+                }
+            }, {
+                '$lookup': {
+                    'from': 'course',
+                    'localField': 'result.courseID',
+                    'foreignField': 'courseID',
+                    'as': 'result2'
+                }
+            }, {
+                '$unwind': {
+                    'path': '$result2',
+                    'preserveNullAndEmptyArrays': False
+                }
+            }, {
+                '$match': {
+                    'user_id': user_id
+                }
+            }, {
+                '$sort': {
+                    'courseID': 1
+                }
+            }
+        ]))
+    return render_template("enrollment.html", enrollment=True, title="Enrollment", classes=classes)
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
